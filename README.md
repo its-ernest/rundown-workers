@@ -1,6 +1,6 @@
 # Rundown-Workers
 
-### Latest Release: v0.2.0 (Stable)
+### Latest Release: v0.1.0 (Stable)
 
 The Rundown-Workers Engine is now even more flexible with custom port support and pre-compiled binaries for Windows and Linux (including ARM64).
 

@@ -158,7 +158,7 @@ func main() {
 		}
 	}()
 
-	fmt.Printf("Rundown-Workers Engine v0.2.0 starting on :%d\n", *port)
+	fmt.Printf("Rundown-Workers Engine v0.1.0 starting on :%d\n", *port)
 	if err := e.Start(fmt.Sprintf(":%d", *port)); err != nil && err != http.ErrServerClosed {
 		fmt.Printf("[!] Engine crashed: %v\n", err)
 	}
