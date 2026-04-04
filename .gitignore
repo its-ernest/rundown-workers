@@ -5,6 +5,7 @@
 *.so
 *.dylib
 /engine
+bin/
 
 # Databases and Journals
 *.db
