@@ -1,5 +1,9 @@
 # Rundown-Workers
 
+### Latest Release: v0.2.0 (Stable)
+
+The Rundown-Workers Engine is now even more flexible with custom port support and pre-compiled binaries for Windows and Linux (including ARM64).
+
 Rundown-Workers is a lightweight, language-agnostic workflow executor for developers who need reliable background job processing without heavy infrastructure.
 
 It combines a Go-based core engine with simple SDKs (Python, Node.js, etc.), allowing tasks to be defined and executed in any language.
