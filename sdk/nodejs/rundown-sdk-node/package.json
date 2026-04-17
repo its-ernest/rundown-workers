@@ -1,5 +1,5 @@
 {
-  "name": "rundown-workers",
+  "name": "@rundownworker/rundown-workers",
   "version": "0.1.0",
   "description": "Node.js SDK for Rundown-Workers engine",
   "type": "module",

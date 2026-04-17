@@ -14,7 +14,7 @@ Node.js SDK for [Rundown-Workers](https://github.com/its-ernest/rundown-workers)
 ## Installation
 
 ```bash
-npm install rundown-workers
+npm install @rundownworker/rundown-workers
 ```
 
 ---
@@ -24,7 +24,7 @@ npm install rundown-workers
 ### 1. Enqueue a job from your backend
 
 ```ts
-import { enqueue } from "rundown-workers";
+import { enqueue } from "@rundownworker/rundown-workers";
 
 await enqueue("email_sender", { to: "user@example.com" });
 ```
@@ -34,7 +34,7 @@ await enqueue("email_sender", { to: "user@example.com" });
 **Functional style (simple)**
 
 ```ts
-import { queue, run } from "rundown-workers";
+import { queue, run } from "@rundownworker/rundown-workers";
 
 queue({ name: "email_sender" }, async (payload) => {
   await sendEmail(payload.to);
@@ -46,7 +46,7 @@ await run({ host: "http://localhost:8181" });
 **Class style (more control)**
 
 ```ts
-import { Worker } from "rundown-workers";
+import { Worker } from "@rundownworker/rundown-workers";
 
 const worker = new Worker({ host: "http://localhost:8181" });
 
@@ -92,7 +92,7 @@ Returns the created job object or `null` if the engine is unreachable.
 Registers a handler on the global worker instance. Use with `run()` for a minimal setup.
 
 ```ts
-import { queue, run } from "rundown-workers";
+import { queue, run } from "@rundownworker/rundown-workers";
 
 queue({ name: "email_sender" }, async (payload) => {
   await sendEmail(payload.to);
@@ -253,7 +253,7 @@ worker.register<EmailJob>({ name: "email_sender" }, async (payload) => {
 ## Full Example
 
 ```ts
-import { enqueue, Worker } from "rundown-workers";
+import { enqueue, Worker } from "@rundownworker/rundown-workers";
 
 const worker = new Worker({
   host: "http://localhost:8181",
