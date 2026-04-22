@@ -32,6 +32,7 @@ func TestIntegration(t *testing.T) {
 	e.POST("/enqueue", func(c *echo.Context) error {
 		var req struct {
 			Queue      string `json:"queue"`
+			Tag        string `json:"tag,omitempty"`
 			Payload    string `json:"payload"`
 			Timeout    int    `json:"timeout"`
 			MaxRetries int    `json:"max_retries"`
@@ -39,7 +40,7 @@ func TestIntegration(t *testing.T) {
 		if err := c.Bind(&req); err != nil {
 			return err
 		}
-		job, err := s.Enqueue(req.Queue, req.Payload, req.Timeout, req.MaxRetries)
+		job, err := s.Enqueue(req.Queue, req.Tag, req.Payload, req.Timeout, req.MaxRetries)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}

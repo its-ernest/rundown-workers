@@ -11,7 +11,7 @@ import (
 )
 
 type Store interface {
-	Enqueue(queue, payload string, timeout, maxRetries int) (*engine.Job, error)
+	Enqueue(queue, tag, payload string, timeout, maxRetries int) (*engine.Job, error)
 	Poll(queue string) (*engine.Job, error)
 	Complete(id string) error
 	Fail(id string) error
@@ -38,6 +38,7 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	CREATE TABLE IF NOT EXISTS jobs (
 		id          TEXT PRIMARY KEY,
 		queue       TEXT NOT NULL,
+		tag         TEXT DEFAULT '',
 		payload     TEXT NOT NULL,
 		status      TEXT NOT NULL,
 		retries     INTEGER DEFAULT 0,
@@ -56,7 +57,7 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	return &SQLiteStore{db: db}, nil
 }
 
-func (s *SQLiteStore) Enqueue(queue, payload string, timeout, maxRetries int) (*engine.Job, error) {
+func (s *SQLiteStore) Enqueue(queue, tag, payload string, timeout, maxRetries int) (*engine.Job, error) {
 	if timeout <= 0 {
 		timeout = 300
 	}
@@ -68,6 +69,7 @@ func (s *SQLiteStore) Enqueue(queue, payload string, timeout, maxRetries int) (*
 	job := &engine.Job{
 		ID:         uuid.New().String(),
 		Queue:      queue,
+		Tag:        tag,
 		Payload:    payload,
 		Status:     engine.StatusPending,
 		Retries:    0,
@@ -79,9 +81,9 @@ func (s *SQLiteStore) Enqueue(queue, payload string, timeout, maxRetries int) (*
 	}
 
 	_, err := s.db.Exec(
-		`INSERT INTO jobs (id, queue, payload, status, retries, max_retries, timeout, created_at, updated_at, next_run_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		job.ID, job.Queue, job.Payload, job.Status,
+		`INSERT INTO jobs (id, queue, tag, payload, status, retries, max_retries, timeout, created_at, updated_at, next_run_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		job.ID, job.Queue, job.Tag, job.Payload, job.Status,
 		job.Retries, job.MaxRetries, job.Timeout,
 		job.CreatedAt, job.UpdatedAt, job.NextRunAt,
 	)
@@ -105,14 +107,14 @@ func (s *SQLiteStore) Poll(queue string) (*engine.Job, error) {
 	var job engine.Job
 
 	err = tx.QueryRowContext(ctx,
-		`SELECT id, queue, payload, status, retries, max_retries, timeout, created_at, updated_at, next_run_at
+		`SELECT id, queue, tag, payload, status, retries, max_retries, timeout, created_at, updated_at, next_run_at
 		 FROM jobs
 		 WHERE queue = ? AND status = ? AND next_run_at <= ?
 		 ORDER BY created_at ASC
 		 LIMIT 1`,
 		queue, engine.StatusPending, now,
 	).Scan(
-		&job.ID, &job.Queue, &job.Payload, &job.Status,
+		&job.ID, &job.Queue, &job.Tag, &job.Payload, &job.Status,
 		&job.Retries, &job.MaxRetries, &job.Timeout,
 		&job.CreatedAt, &job.UpdatedAt, &job.NextRunAt,
 	)

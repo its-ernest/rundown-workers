@@ -6,7 +6,7 @@ class Client:
 	def __init__(self, host="http://localhost:8181"):
 		self.host = host
 
-	def enqueue(self, queue, payload, timeout=None, max_retries=None):
+	def enqueue(self, queue, payload, timeout=None, max_retries=None, tag=None):
 		"""
 		Submits a new task to the Rundown-Workers engine.
 
@@ -14,9 +14,12 @@ class Client:
 		:param payload: The data content of the job.
 		:param timeout: Optional override for the execution time limit (in seconds).
 		:param max_retries: Optional override for the maximum retry count.
+		:param tag: Optional tag for the job.
 		"""
 		url = f"{self.host}/enqueue"
 		data = {"queue": queue, "payload": payload}
+		if tag is not None:
+			data["tag"] = tag
 		if timeout:
 			data["timeout"] = timeout
 		if max_retries is not None:

@@ -3,6 +3,7 @@ export type Handler<T = unknown> = (payload: T) => Promise<void> | void;
 export interface EnqueueOptions {
   timeout?: number;
   max_retries?: number;
+  tag?: string;
   host?: string;
 }
 
@@ -22,6 +23,7 @@ export interface WorkerConfig {
 export interface Job<T = unknown> {
   id: string;
   queue: string;
+  tag?: string;
   payload: T;
   retry_count?: number;
   timeout?: number;

@@ -218,6 +218,7 @@ A unit of work:
 {
   "id": "uuid",
   "queue": "post_worker",
+  "tag": "optional_tag",
   "payload": "data",
   "status": "pending"
 }
