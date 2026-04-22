@@ -18,10 +18,10 @@ def queue(name, host="http://localhost:8181", poll_interval=1.0, max_retries=3):
 		return wrapper
 	return decorator
 
-def enqueue(queue, payload, host="http://localhost:8181", timeout=None, max_retries=None):
+def enqueue(queue, payload, host="http://localhost:8181", timeout=None, max_retries=None, tag=None):
 	"""Submit a job to a queue."""
 	client = Client(host=host)
-	return client.enqueue(queue, payload, timeout=timeout, max_retries=max_retries)
+	return client.enqueue(queue, payload, timeout=timeout, max_retries=max_retries, tag=tag)
 
 def run():
 	"""Main entry point to start all decorated workers."""

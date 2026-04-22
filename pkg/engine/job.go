@@ -26,6 +26,7 @@ const (
 type Job struct {
 	ID         string    `json:"id"`
 	Queue      string    `json:"queue"`
+	Tag        string    `json:"tag,omitempty"`
 	Payload    string    `json:"payload"`
 	Status     JobStatus `json:"status"`
 	Retries    int       `json:"retries"`     // How many times this job has been attempted.

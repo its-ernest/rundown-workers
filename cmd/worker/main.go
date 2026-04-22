@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ import (
 // EnqueueRequest defines the parameters for adding a new job to a queue.
 type EnqueueRequest struct {
 	Queue      string `json:"queue"`
+	Tag        string `json:"tag,omitempty"`
 	Payload    string `json:"payload"`
 	Timeout    int    `json:"timeout"`
 	MaxRetries int    `json:"max_retries"`
@@ -44,6 +46,28 @@ func main() {
 
 	// Use ONLY existing middlewares in v5
 	e.Use(middleware.Recover())
+
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus:  true,
+		LogMethod:  true,
+		LogURI:     true,
+		LogLatency: true,
+		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
+			statusColor := "\033[32m" // Green
+			if v.Status >= 400 {
+				statusColor = "\033[33m"
+			}
+			if v.Status >= 500 {
+				statusColor = "\033[31m"
+			}
+			reset := "\033[0m"
+
+			log.Printf("%s %s %s| %s%d%s | %10v | %s",
+				"\033[34m[API]\033[0m", v.Method, v.URI,
+				statusColor, v.Status, reset, v.Latency, c.Request().RemoteAddr)
+			return nil
+		},
+	}))
 
 	// Initialize store
 	s, err := store.NewSQLiteStore("rundown_v2.db")
@@ -94,7 +118,7 @@ func main() {
 		if err := c.Bind(&req); err != nil {
 			return err
 		}
-		job, err := s.Enqueue(req.Queue, req.Payload, req.Timeout, req.MaxRetries)
+		job, err := s.Enqueue(req.Queue, req.Tag, req.Payload, req.Timeout, req.MaxRetries)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}

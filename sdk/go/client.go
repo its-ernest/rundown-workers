@@ -27,9 +27,10 @@ func NewClient(host string) *Client {
 }
 
 // Enqueue submits a new job to the engine.
-func (c *Client) Enqueue(queue, payload string, timeout, maxRetries int) (*Job, error) {
+func (c *Client) Enqueue(queue, payload string, timeout, maxRetries int, tag string) (*Job, error) {
 	reqBody := map[string]interface{}{
 		"queue":       queue,
+		"tag":         tag,
 		"payload":     payload,
 		"timeout":     timeout,
 		"max_retries": maxRetries,
@@ -51,6 +52,18 @@ func (c *Client) Enqueue(queue, payload string, timeout, maxRetries int) (*Job, 
 		return nil, err
 	}
 	return &job, nil
+}
+
+// Job represents a unit of work.
+type Job struct {
+	ID         string `json:"id"`
+	Queue      string `json:"queue"`
+	Tag        string `json:"tag,omitempty"`
+	Payload    string `json:"payload"`
+	Status     string `json:"status"`
+	Retries    int    `json:"retries"`
+	MaxRetries int    `json:"max_retries"`
+	Timeout    int    `json:"timeout"`
 }
 
 // worker represents a registered queue and its handler.

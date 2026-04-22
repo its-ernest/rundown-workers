@@ -40,6 +40,7 @@ export class EngineClient {
       queue,
 
       payload: typeof payload === "string" ? payload : JSON.stringify(payload),
+      ...(options.tag !== undefined && { tag: options.tag }),
       ...(options.timeout !== undefined && { timeout: options.timeout }),
       ...(options.max_retries !== undefined && {
         max_retries: options.max_retries,
