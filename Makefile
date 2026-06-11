@@ -1,5 +1,5 @@
-VERSION := v0.1.0
-BINARY_NAME := engine
+VERSION := v0.2.0
+BINARY_NAME := rundown-engine
 BUILD_DIR := bin
 LD_FLAGS := -s -w
 

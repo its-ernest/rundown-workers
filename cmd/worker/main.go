@@ -39,7 +39,23 @@ type FailRequest struct {
 }
 
 func main() {
-	port := flag.Int("port", 8181, "Port to run the engine on")
+	// Read defaults from environment
+	defaultPort := os.Getenv("RUNDOWN_PORT")
+	if defaultPort == "" {
+		defaultPort = os.Getenv("PORT")
+	}
+	if defaultPort == "" {
+		defaultPort = "8181"
+	}
+
+	defaultHost := os.Getenv("RUNDOWN_HOST")
+	if defaultHost == "" {
+		defaultHost = "0.0.0.0"
+	}
+
+	var portStr string
+	flag.StringVar(&portStr, "port", defaultPort, "Port to run the engine on")
+	host := flag.String("host", defaultHost, "Host to bind the engine on")
 	flag.Parse()
 
 	e := echo.New()
@@ -182,8 +198,8 @@ func main() {
 		}
 	}()
 
-	fmt.Printf("Rundown-Workers Engine v0.2.0 starting on :%d\n", *port)
-	if err := e.Start(fmt.Sprintf(":%d", *port)); err != nil && err != http.ErrServerClosed {
+	fmt.Printf("Rundown-Workers Engine v0.2.0 starting on %s:%s\n", *host, portStr)
+	if err := e.Start(fmt.Sprintf("%s:%s", *host, portStr)); err != nil && err != http.ErrServerClosed {
 		fmt.Printf("[!] Engine crashed: %v\n", err)
 	}
 }

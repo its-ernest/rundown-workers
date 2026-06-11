@@ -3,8 +3,8 @@ import time
 import threading
 
 class Client:
-	def __init__(self, host="http://localhost:8181"):
-		self.host = host
+	def __init__(self, url="http://localhost:8181"):
+		self.url = url.rstrip("/")
 
 	def enqueue(self, queue, payload, timeout=None, max_retries=None, tag=None):
 		"""
@@ -16,7 +16,7 @@ class Client:
 		:param max_retries: Optional override for the maximum retry count.
 		:param tag: Optional tag for the job.
 		"""
-		url = f"{self.host}/enqueue"
+		url = f"{self.url}/enqueue"
 		data = {"queue": queue, "payload": payload}
 		if tag is not None:
 			data["tag"] = tag
@@ -29,7 +29,7 @@ class Client:
 		return resp.json()
 
 	def poll(self, queue):
-		url = f"{self.host}/poll"
+		url = f"{self.url}/poll"
 		data = {"queue": queue}
 		resp = requests.post(url, json=data)
 		if resp.status_code == 204:
@@ -38,13 +38,13 @@ class Client:
 		return resp.json()
 
 	def complete(self, job_id):
-		url = f"{self.host}/complete"
+		url = f"{self.url}/complete"
 		data = {"id": job_id}
 		resp = requests.post(url, json=data)
 		resp.raise_for_status()
 
 	def fail(self, job_id):
-		url = f"{self.host}/fail"
+		url = f"{self.url}/fail"
 		data = {"id": job_id}
 		resp = requests.post(url, json=data)
 		resp.raise_for_status()

@@ -52,11 +52,11 @@ You must have it installed first, before you can use the SDKs in your project(su
 
 # for linux (replace amd64 with your architecture)
 # run this from your project root
-$ curl -L https://github.com/its-ernest/rundown-workers/releases/download/v0.1.0/engine-linux-amd64 -o rundown-workers/engine
+$ curl -L https://github.com/its-ernest/rundown-workers/releases/download/v0.2.0/engine-linux-amd64 -o rundown-workers/engine
 
 # for windows
 # run this from your project root
-$ curl -L https://github.com/its-ernest/rundown-workers/releases/download/v0.1.0/engine-windows-amd64.exe -o rundown-workers/engine.exe
+$ curl -L https://github.com/its-ernest/rundown-workers/releases/download/v0.2.0/engine-windows-amd64.exe -o rundown-workers/engine.exe
 ```
 
 ```bash
@@ -97,6 +97,8 @@ $ ./rundown-workers/engine --port 8080
 ---
 
 ## SDKs
+
+**NOTE: SDKS AREN'T ALWAYS UP-TO-DATE. I SUGGEST STICKING TO CURL FALLBACK FOR OPERATING**
 
 You can schedule and manage worker jobs in your backend using the SDKs. For instance, if your backend is in Python, you can use the Python SDK to schedule and manage worker jobs.
 

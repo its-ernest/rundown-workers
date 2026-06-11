@@ -54,6 +54,10 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		return nil, err
 	}
 
+	// Migration: Add tag column if it doesn't exist (from older versions)
+	// We ignore the error because SQLite doesn't have "IF NOT EXISTS" for ADD COLUMN
+	_, _ = db.Exec("ALTER TABLE jobs ADD COLUMN tag TEXT DEFAULT '';")
+
 	return &SQLiteStore{db: db}, nil
 }
 
