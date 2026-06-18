@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,12 +11,16 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Inside internal/store/store.go
+
 type Store interface {
 	Enqueue(queue, tag, payload string, timeout, maxRetries int) (*engine.Job, error)
 	Poll(queue string) (*engine.Job, error)
 	Complete(id string) error
 	Fail(id string) error
 	CleanupStale() (int64, error)
+	GetJob(id string) (*engine.Job, error)
+	GetJobByTag(tag string) (*engine.Job, error)
 }
 
 type SQLiteStore struct {
@@ -59,6 +64,42 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	_, _ = db.Exec("ALTER TABLE jobs ADD COLUMN tag TEXT DEFAULT '';")
 
 	return &SQLiteStore{db: db}, nil
+}
+
+func (s *SQLiteStore) GetJob(id string) (*engine.Job, error) {
+	var job engine.Job
+	err := s.db.QueryRow(
+		`SELECT id, queue, tag, payload, status, retries, max_retries, timeout, created_at, updated_at, next_run_at 
+         FROM jobs WHERE id = ?`, id,
+	).Scan(
+		&job.ID, &job.Queue, &job.Tag, &job.Payload, &job.Status,
+		&job.Retries, &job.MaxRetries, &job.Timeout,
+		&job.CreatedAt, &job.UpdatedAt, &job.NextRunAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("job not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+func (s *SQLiteStore) GetJobByTag(tag string) (*engine.Job, error) {
+	var job engine.Job
+	err := s.db.QueryRow(
+		`SELECT id, queue, tag, payload, status, retries, max_retries, timeout, created_at, updated_at, next_run_at 
+         FROM jobs WHERE tag = ? ORDER BY created_at DESC LIMIT 1`, tag,
+	).Scan(
+		&job.ID, &job.Queue, &job.Tag, &job.Payload, &job.Status,
+		&job.Retries, &job.MaxRetries, &job.Timeout,
+		&job.CreatedAt, &job.UpdatedAt, &job.NextRunAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &job, nil
 }
 
 func (s *SQLiteStore) Enqueue(queue, tag, payload string, timeout, maxRetries int) (*engine.Job, error) {

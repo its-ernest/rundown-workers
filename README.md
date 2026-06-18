@@ -2,7 +2,7 @@
 
 Rundown-Workers is a lightweight, language-agnostic workflow executor for developers who need reliable background job processing without heavy infrastructure.
 
-It combines a Go-based core engine with simple SDKs (Python, Node.js, etc.), allowing tasks to be defined and executed in any language.
+It combines a Go-based core engine with structured HTTP primitives, allowing tasks to be defined, batched, and executed cleanly in any language.
 
 ---
 
@@ -10,12 +10,10 @@ It combines a Go-based core engine with simple SDKs (Python, Node.js, etc.), all
 
 Most workflow systems are powerful but unnecessarily complex.
 
-Rundown-Workers follows a simpler principle:
+Rundown-Workers follows a simpler principle: **Keep the engine minimal and let execution happen in the language where the code already lives.**
 
-Keep the engine minimal and let execution happen in the language where the code already lives.
-
-* The engine orchestrates
-* The SDK executes
+* The engine orchestrates state.
+* Your worker code executes the logic.
 
 ---
 
@@ -23,176 +21,137 @@ Keep the engine minimal and let execution happen in the language where the code 
 
 The system consists of:
 
-* A Go engine (HTTP API + SQLite)
-* Language-specific SDKs (Python, Node.js, Go, etc.)
-* Workers that poll and execute jobs
+* **A Go Engine:** A high-performance HTTP API backed by a local SQLite store (`rundown_v2.db`).
+* **Interval/Continuous Workers:** External scripts or daemons that fetch task items via atomic batch calls, parse payloads, and handle execution safely.
 
-Communication happens over HTTP, making the system language-agnostic.
+Communication happens purely over native HTTP JSON payloads, making the entire ecosystem inherently language-agnostic.
 
 ---
 
 ## How It Works
 
-1. A job is enqueued into the engine
-2. A worker polls the engine for jobs
-3. The engine assigns a job
-4. The SDK executes the job locally
-5. The worker reports completion
+1. A job with a structured JSON payload is enqueued into the engine.
+2. A worker polls the `/poll` endpoint (individually or in batches up to a specified limit).
+3. The engine updates the row transaction parameters and assigns unique tracking IDs.
+4. The worker executes the execution code locally with isolated recovery guards.
+5. The worker posts a validation confirmation back to mark completion or track execution failure.
 
 ---
 
 ## Installation
 
 ### 1. Install Rundown Workers
-You must have it installed first, before you can use the SDKs in your project(such as Python package, Go package, Node.js package, etc).
+
+You must have the engine running before you can dispatch tasks or trigger background execution nodes.
 
 ```bash
-# if you want to use pre-built binary
-# download from releases
+# Download a pre-built binary from releases
 
-# for linux (replace amd64 with your architecture)
-# run this from your project root
+# For Linux (replace amd64 with your architecture)
 $ curl -L https://github.com/its-ernest/rundown-workers/releases/download/v0.2.0/engine-linux-amd64 -o rundown-workers/engine
 
-# for windows
-# run this from your project root
+# For Windows
 $ curl -L https://github.com/its-ernest/rundown-workers/releases/download/v0.2.0/engine-windows-amd64.exe -o rundown-workers/engine.exe
+
 ```
 
 ```bash
-# if you want manual build
+# Or build manually from source
 $ git clone https://github.com/its-ernest/rundown-workers.git
 $ cd rundown-workers
 $ make build
+
 ```
 
-### 2. Run the engine
+### 2. Run the Engine
 
 ```bash
-# if you don't have go installed
-# download rundown-workers binary from releases
-# and run this command
+# Run pre-built engine binary
+$ ./rundown-workers/engine       # Linux
+$ ./rundown-workers/engine.exe   # Windows
 
-$ ./rundown-workers/engine # on linux
-$ ./rundown-workers/engine.exe # on windows
 ```
 
 ```bash
-# manual builds
-# if you have go installed
-$ git clone https://github.com/yourusername/rundown-workers.git
-$ cd rundown-workers
-$ go run cmd/worker/main.go
+# Run manual source build
+$ go run main.go
+
 ```
 
-The server starts at:
+The server binds and initializes by default at: `http://localhost:8181`
 
 ```bash
-http://localhost:8181
+# Optional: Change the binding port and host tracking fields
+$ ./rundown-workers/engine --host 0.0.0.0 --port 8080
 
-# if you want to change port
-$ ./rundown-workers/engine --port 8080
 ```
 
 ---
 
-## SDKs
+## SDKs & HTTP Core API
 
-**NOTE: SDKS AREN'T ALWAYS UP-TO-DATE. I SUGGEST STICKING TO CURL FALLBACK FOR OPERATING**
+**NOTE: SDKS AREN'T ALWAYS UP-TO-DATE. IT IS STRONGLY RECOMMENDED TO STICK TO NATIVE NATIVE HTTP / cURL CALLS FOR OPERATING**
 
-You can schedule and manage worker jobs in your backend using the SDKs. For instance, if your backend is in Python, you can use the Python SDK to schedule and manage worker jobs.
+You can write direct API wrappers in your backend using the structural links below, or use raw HTTP fallback channels for stable processing:
 
-- [Python](sdk/python/README.md)
-- [Node.js](sdk/nodejs/README.md)
-- [Go](sdk/go/README.md)
+* [Python](sdk/python/README.md)
+* [Node.js](sdk/nodejs/README.md)
+* [Go](sdk/go/README.md)
 
-### Use cURL as fallbackc for now if your backend is not in the SDK list above
+### Native Core HTTP Operations
+
+#### 1. Enqueue a Job (Accepts Native JSON Object Payloads)
 
 ```bash
-# Enqueue a job
 curl -X POST http://localhost:8181/enqueue \
--H "Content-Type: application/json" \
--d '{
-  "queue": "post_worker",
-  "payload": "Hello from Rundown"
-}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "queue": "post_worker",
+    "payload": {
+      "video_link": "https://www.tiktok.com/@growth_ops/video/7341",
+      "type": "organic"
+    },
+    "timeout": 360,
+    "max_retries": 3
+  }'
 
-# Poll for a job
+```
+
+#### 2. Batch Poll for Jobs (Using Limit Constraints)
+
+```bash
 curl -X POST http://localhost:8181/poll \
--H "Content-Type: application/json" \
--d '{
-  "queue": "post_worker"
-}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "queue": "post_worker",
+    "limit": 10
+  }'
 
-# Mark job as complete
+```
+
+*Returns a JSON array block listing up to 10 unique job objects with assigned tracking IDs.*
+
+#### 3. Mark Job as Complete
+
+```bash
 curl -X POST http://localhost:8181/complete \
--H "Content-Type: application/json" \
--d '{
-  "id": "job-id"
-}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "abc-123-unique-job-uuid"
+  }'
 
-# Mark job as failed
+```
+
+#### 4. Mark Job as Failed
+
+```bash
 curl -X POST http://localhost:8181/fail \
--H "Content-Type: application/json" \
--d '{
-  "id": "job-id"
-}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "abc-123-unique-job-uuid"
+  }'
+
 ```
-
-## Basic Usage (example in Python sdk)
-
-### Step 1 — Define a Worker (Python)
-
-```python
-import rundown_workers as rw
-
-# This task will fail if it takes longer than 2 seconds
-rw.enqueue(queue="greetings", payload="Hello!", timeout=2)
-
-# This task will retry 3 times if it fails
-rw.enqueue(queue="greetings", payload="Hello!", max_retries=3)
-
-# This task will retry 3 times if it fails and will time out after 2 seconds
-rw.enqueue(queue="greetings", payload="Hello!", timeout=2, max_retries=3)
-
-# This actively fetches and executes jobs
-@rw.queue(name="greetings", host="http://localhost:8181")
-def run_work(payload):
-    print("Processing:", payload)
-    return True
-```
-
-Run the worker:
-
-```bash
-python worker.py
-```
-
-This starts a background process that continuously polls for jobs.
-
----
-
-### Step 2 — Enqueue a Job
-
-```bash
-curl -X POST http://localhost:8181/enqueue \
--H "Content-Type: application/json" \
--d '{
-  "queue": "post_worker",
-  "payload": "Hello from Rundown"
-}'
-```
-
----
-
-## What Happens Next
-
-* The engine stores the job in SQLite
-* The worker polls the /poll endpoint
-* A job is assigned
-* The function executes
-* The worker calls /complete
-* The job is marked as done
 
 ---
 
@@ -200,115 +159,63 @@ curl -X POST http://localhost:8181/enqueue \
 
 ### Queue
 
-A named channel for jobs.
+A named pipeline channel grouping specific varieties of task processing workloads together.
 
-Examples:
-
-```
-post_worker
-email_sender
-image_processor
-```
-
----
+* *Examples:* `post_worker`, `email_sender`, `image_processor`
 
 ### Job
 
-A unit of work:
-
-```
-{
-  "id": "uuid",
-  "queue": "post_worker",
-  "tag": "optional_tag",
-  "payload": "data",
-  "status": "pending"
-}
-```
-
----
+An atomic, uniquely identified unit of persistent work containing metadata configurations and a structural JSON payload data segment.
 
 ### Worker
 
-A process that:
-
-* Polls the engine
-* Executes jobs
-* Reports completion
+An isolated application or background daemon process that queries execution batches at designated time frequencies, handles execution safely via runtime panics/recovery mechanisms, and reports structural statuses back to the engine.
 
 ---
 
 ## Job Lifecycle
 
 ```
-pending -> running -> done
+[ pending ] ──( Poll / Batch Limit )──> [ running ] ──┬──( Success )──> [ done ]
+                                                      └──( Failure )──> [ failed ]
+
 ```
 
 ---
 
 ## Why This Design
 
-Rundown-Workers avoids forcing all logic into a single language.
+Rundown-Workers avoids forcing all your core system infrastructure dependencies into a single runtime ecosystem. It lets you write high-performance orchestration layers where they make the most sense:
 
-It allows:
+* **Python** for machine learning pipelines and quick automation tracking hooks.
+* **Node.js** for high-throughput asynchronous file streaming logic.
+* **Go** for blistering-fast backend systems, resource concurrency management, and API architectures.
 
-* Python for data processing
-* Node.js for asynchronous tasks
-* Go for performance-sensitive work
-
-All coordinated through a single lightweight engine.
+All seamlessly coordinated through a decoupled, atomic SQLite core transaction broker.
 
 ---
 
-## Current Limitations
+## Current Limitations & Roadmap
 
-This project is in an early stage.
+This system is actively evolving. Current layout constraints and future roadmap milestones include:
 
-Missing features include:
-
-* Retry mechanism
-* Job timeouts
-* Dead letter queue
-* Scheduling or delayed jobs
-* Authentication
-* Observability (logging and metrics)
+* [x] Structured JSON Object Payload Support
+* [x] Array-based Multi-Job Batch Polling (`limit` parameter flags)
+* [x] Automatic 30s Database Staleness Cleanup and Job Recovery Ticker
+* [ ] Dead Letter Queue (DLQ) Isolation Arrays
+* [ ] Multi-node Authentication Layering
+* [ ] Native Prom/Grafana Infrastructure Metrics Monitoring Dashboard
 
 ---
 
-## Roadmap
+## Contributing & License
 
-* Retry and backoff strategy
-* Timeout handling and job recovery
-* Multiple workers per queue
-* SDK for Node.js
-* CLI tooling
-* Monitoring dashboard
-* Optional distributed mode (e.g. PostgreSQL)
+Contributions are welcome. Areas to start focus on include SDK updates, automated integration test coverage parameters, and custom CLI orchestration tools.
+
+Distributed under the **MIT License**.
 
 ---
 
-## Contributing
+### Philosophy Note
 
-Contributions are welcome.
-
-Areas to start:
-
-* SDK improvements
-* Retry logic
-* Testing
-
----
-
-## License
-
-MIT
-
----
-
-## Idea behind this project
-
-Rundown-Workers is not designed to compete with complex workflow engines.
-
-It is built for simplicity, clarity, and control.
-
-Simple systems scale better because they are easier to reason about and harder to break.
+Rundown-Workers isn't built to compete with hyper-complex, heavily bloated microservice workflow engines. It is engineered purposefully for simplicity, clarity, and total control. Simple code paths scale cleaner because they are inherently predictable and incredibly hard to break.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -14,32 +15,30 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 )
 
-// EnqueueRequest defines the parameters for adding a new job to a queue.
+// EnqueueRequest modified: Payload now accepts raw structured JSON maps natively.
 type EnqueueRequest struct {
-	Queue      string `json:"queue"`
-	Tag        string `json:"tag,omitempty"`
-	Payload    string `json:"payload"`
-	Timeout    int    `json:"timeout"`
-	MaxRetries int    `json:"max_retries"`
+	Queue      string      `json:"queue"`
+	Tag        string      `json:"tag,omitempty"`
+	Payload    interface{} `json:"payload"` // Changed from string to interface{} to accept json structures
+	Timeout    int         `json:"timeout"`
+	MaxRetries int         `json:"max_retries"`
 }
 
-// PollRequest defines the queue to poll for new jobs.
+// PollRequest modified: Added a limit ceiling parameter to fetch items in batches.
 type PollRequest struct {
 	Queue string `json:"queue"`
+	Limit int    `json:"limit,omitempty"` // Allows picking multiple records simultaneously
 }
 
-// CompleteRequest identifies a job to be marked as finished.
 type CompleteRequest struct {
 	ID string `json:"id"`
 }
 
-// FailRequest identifies a job to be marked as failed.
 type FailRequest struct {
 	ID string `json:"id"`
 }
 
 func main() {
-	// Read defaults from environment
 	defaultPort := os.Getenv("RUNDOWN_PORT")
 	if defaultPort == "" {
 		defaultPort = os.Getenv("PORT")
@@ -60,7 +59,6 @@ func main() {
 
 	e := echo.New()
 
-	// Use ONLY existing middlewares in v5
 	e.Use(middleware.Recover())
 
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
@@ -85,18 +83,15 @@ func main() {
 		},
 	}))
 
-	// Initialize store
 	s, err := store.NewSQLiteStore("rundown_v2.db")
 	if err != nil {
 		panic(fmt.Sprintf("Error initializing store: %v", err))
 	}
 
-	// Endpoints
 	e.GET("/", func(c *echo.Context) error {
 		return c.Redirect(http.StatusMovedPermanently, "/docs")
 	})
 
-	// Live Documentation rendering with gomarkdown
 	e.GET("/docs", func(c *echo.Context) error {
 		fmt.Println("[DEBUG] /docs endpoint was hit!")
 		content, err := os.ReadFile("DOCUMENTATION.md")
@@ -104,10 +99,8 @@ func main() {
 			return echo.NewHTTPError(http.StatusNotFound, "Documentation not found")
 		}
 
-		// Convert markdown to HTML
 		html := markdown.ToHTML(content, nil, nil)
 
-		// Wrap in a HTML template
 		styledHTML := fmt.Sprintf(`
 			<!DOCTYPE html>
 			<html>
@@ -128,36 +121,60 @@ func main() {
 		return c.HTML(http.StatusOK, styledHTML)
 	})
 
-	// 1. Enqueue a job
+	// 1. Enqueue an active job with direct formatting blocks
 	e.POST("/enqueue", func(c *echo.Context) error {
 		var req EnqueueRequest
 		if err := c.Bind(&req); err != nil {
 			return err
 		}
-		job, err := s.Enqueue(req.Queue, req.Tag, req.Payload, req.Timeout, req.MaxRetries)
+
+		// Convert the incoming structured payload mapping directly into database text
+		marshaledPayload, err := json.Marshal(req.Payload)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid JSON structure parsed inside payload field")
+		}
+
+		job, err := s.Enqueue(req.Queue, req.Tag, string(marshaledPayload), req.Timeout, req.MaxRetries)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 		return c.JSON(http.StatusOK, job)
 	})
 
-	// 2. Poll for a job
+	// 2. Poll for multiple jobs simultaneously inside a single slice array
 	e.POST("/poll", func(c *echo.Context) error {
 		var req PollRequest
 		if err := c.Bind(&req); err != nil {
 			return err
 		}
-		job, err := s.Poll(req.Queue)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+
+		// Enforce a default processing threshold boundary if none is provided
+		if req.Limit <= 0 {
+			req.Limit = 1
 		}
-		if job == nil {
+
+		var activeJobs []interface{}
+
+		// Loop up to the targeted batch size parameters
+		for i := 0; i < req.Limit; i++ {
+			job, err := s.Poll(req.Queue)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+			}
+			if job == nil {
+				break // Queue drained cleanly
+			}
+			activeJobs = append(activeJobs, job)
+		}
+
+		if len(activeJobs) == 0 {
 			return c.NoContent(http.StatusNoContent)
 		}
-		return c.JSON(http.StatusOK, job)
+
+		// Returns a plain JSON array list containing all unique job entities mapped with their IDs
+		return c.JSON(http.StatusOK, activeJobs)
 	})
 
-	// 3. Mark job as complete
 	e.POST("/complete", func(c *echo.Context) error {
 		var req CompleteRequest
 		if err := c.Bind(&req); err != nil {
@@ -170,7 +187,6 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
-	// 4. Mark job as failed
 	e.POST("/fail", func(c *echo.Context) error {
 		var req FailRequest
 		if err := c.Bind(&req); err != nil {
@@ -185,7 +201,26 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
-	// Start Staleness Checker (Background recovery)
+	// Get job status by ID for direct tracking and reference
+	e.GET("/status/:id", func(c *echo.Context) error {
+		id := c.Param("id")
+		job, err := s.GetJob(id) // Ensure your store has a GetJob method
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Job not found"})
+		}
+		return c.JSON(http.StatusOK, job)
+	})
+
+	/// Get job details by tag for easier tracking and reference
+	e.GET("/details/:tag", func(c *echo.Context) error {
+		tag := c.Param("tag")
+		job, err := s.GetJobByTag(tag)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Job not found for this reference"})
+		}
+		return c.JSON(http.StatusOK, job)
+	})
+
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		for range ticker.C {
