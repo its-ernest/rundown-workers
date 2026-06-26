@@ -52,9 +52,15 @@ func main() {
 		defaultHost = "0.0.0.0"
 	}
 
+	defaultStore := os.Getenv("RUNDOWN_STORE")
+	if defaultStore == "" {
+		defaultStore = "sqlite"
+	}
+
 	var portStr string
 	flag.StringVar(&portStr, "port", defaultPort, "Port to run the engine on")
 	host := flag.String("host", defaultHost, "Host to bind the engine on")
+	storeBackend := flag.String("store", defaultStore, "Storage backend: sqlite or postgres")
 	flag.Parse()
 
 	e := echo.New()
@@ -83,9 +89,30 @@ func main() {
 		},
 	}))
 
-	s, err := store.NewSQLiteStore("rundown_v2.db")
-	if err != nil {
-		panic(fmt.Sprintf("Error initializing store: %v", err))
+	var s store.Store
+	var err error
+
+	switch *storeBackend {
+	case "postgres":
+		dsn := os.Getenv("DATABASE_URL")
+		if dsn == "" {
+			panic("DATABASE_URL environment variable is required when using --store=postgres")
+		}
+		s, err = store.NewPostgresStore(dsn)
+		if err != nil {
+			panic(fmt.Sprintf("Error initializing postgres store: %v", err))
+		}
+		fmt.Println("[*] Using PostgreSQL store backend")
+	default:
+		dbPath := os.Getenv("RUNDOWN_DB_PATH")
+		if dbPath == "" {
+			dbPath = "rundown_v2.db"
+		}
+		s, err = store.NewSQLiteStore(dbPath)
+		if err != nil {
+			panic(fmt.Sprintf("Error initializing sqlite store: %v", err))
+		}
+		fmt.Println("[*] Using SQLite store backend")
 	}
 
 	e.GET("/", func(c *echo.Context) error {

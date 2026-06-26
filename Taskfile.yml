@@ -1,0 +1,83 @@
+version: "3"
+
+vars:
+  VERSION: v0.3.0
+  BINARY_NAME: rundown-engine
+  BUILD_DIR: bin
+  LD_FLAGS: -s -w
+  IMAGE: itsernest/rundown-workers
+
+tasks:
+  default:
+    desc: Build for current platform
+    cmds:
+      - task: build
+
+  build:
+    desc: Build for current platform
+    cmds:
+      - CGO_ENABLED=0 go build -ldflags="{{.LD_FLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/worker
+      - echo "[*] Built {{.BUILD_DIR}}/{{.BINARY_NAME}}"
+
+  build:all:
+    desc: Build for all platforms
+    deps: [build:linux-amd64, build:linux-arm64, build:windows-amd64, build:windows-arm64]
+
+  build:linux-amd64:
+    desc: Build for Linux amd64
+    cmds:
+      - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="{{.LD_FLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64 ./cmd/worker
+
+  build:linux-arm64:
+    desc: Build for Linux arm64
+    cmds:
+      - GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="{{.LD_FLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-arm64 ./cmd/worker
+
+  build:windows-amd64:
+    desc: Build for Windows amd64
+    cmds:
+      - GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="{{.LD_FLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-windows-amd64.exe ./cmd/worker
+
+  build:windows-arm64:
+    desc: Build for Windows arm64
+    cmds:
+      - GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="{{.LD_FLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-windows-arm64.exe ./cmd/worker
+
+  docker:up:
+    desc: Build + start engine + postgres (dev)
+    cmds:
+      - docker compose -f compose.yml -f compose.dev.yml up -d --build
+      - echo "[*] Rundown-Workers running at http://localhost:8181"
+
+  docker:down:
+    desc: Stop Docker Compose stack
+    cmds:
+      - docker compose down
+
+  docker:logs:
+    desc: Tail engine container logs
+    cmds:
+      - docker compose logs -f engine
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t {{.IMAGE}}:latest .
+
+  docker:push:
+    desc: Build and push image to Docker Hub
+    deps: [docker:build]
+    cmds:
+      - docker push {{.IMAGE}}:latest
+      - echo "[*] Pushed {{.IMAGE}}:latest"
+
+  test:
+    desc: Run Go tests
+    cmds:
+      - go test -v ./...
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - echo "[*] Cleaned {{.BUILD_DIR}}"

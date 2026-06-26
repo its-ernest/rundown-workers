@@ -1,0 +1,7 @@
+# Development override — builds from local Dockerfile instead of pulling from Docker Hub.
+# Usage: docker compose -f compose.yml -f compose.dev.yml up -d --build
+
+services:
+  engine:
+    build: .
+    image: itsernest/rundown-workers:dev
